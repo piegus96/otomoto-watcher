@@ -3,17 +3,28 @@ name: Otomoto Scraper
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6,10,14,16,20 * * *'
+    - cron: '0 6,10,14,16,20 * * *'  # Uruchamia się o 6:00, 10:00, 14:00, 16:00, 20:00
 
 jobs:
   build-and-run:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Debug directory contents
+      run: |
+        echo "📂 Pokaż bieżący katalog:"
+        pwd
+        echo "📁 Lista plików i folderów:"
+        ls -R .
+
     - name: Install dependencies
       run: |
         pip install playwright requests
         playwright install chromium
+
     - name: Run scraper
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
