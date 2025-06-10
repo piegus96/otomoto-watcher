@@ -1,0 +1,21 @@
+name: Otomoto Scraper
+
+on:
+  schedule:
+    - cron: '0 6,10,14,16,20 * * *'
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install dependencies
+      run: |
+        pip install playwright requests
+        playwright install chromium
+    - name: Run scraper
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        python scrape_otomoto.py
