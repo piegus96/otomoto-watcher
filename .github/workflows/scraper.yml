@@ -31,3 +31,9 @@ jobs:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
         python ./scrape_otomoto.py
+
+    - name: Upload screenshot
+      uses: actions/upload-artifact@v3
+      with:
+        name: page.png
+        path: page.png
