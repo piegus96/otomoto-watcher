@@ -45,7 +45,10 @@ def scrape():
         
         page.goto(url)
         page.wait_for_load_state("networkidle")
-        time.sleep(3)  # dla bezpieczeństwa
+        time.sleep(3)
+        page.screenshot(path="page.png", full_page=True)
+        print("📸 Zrzut ekranu zapisany jako page.png")
+
 
         items = page.query_selector_all("a[data-testid='listing-ad']")
         print(f"🔍 Liczba ogłoszeń znalezionych: {len(items)}")
