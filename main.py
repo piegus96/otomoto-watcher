@@ -6,7 +6,7 @@ import json
 import os
 import time
 
-URL = "https://www.otomoto.pl/osobowe/volvo/v60--v60-cross-country--v90--v90-cross-country?search%5Bfilter_float_mileage%3Ato%5D=140000&search%5Bfilter_float_price%3Ato%5D=140000&search%5Border%5D=relevance_web&search%5Badvanced_search_expanded%5D=true"
+URL = "https://www.otomoto.pl/osobowe/volvo/v60--v60-cross-country--v90--v90-cross-country/od-2020?search%5Bfilter_enum_damaged%5D=0&search%5Bfilter_enum_fuel_type%5D=diesel&search%5Bfilter_float_engine_power%3Afrom%5D=190&search%5Bfilter_float_mileage%3Ato%5D=140000&search%5Bfilter_float_price%3Ato%5D=140000&search%5Border%5D=relevance_web&search%5Badvanced_search_expanded%5D=true"
 
 HEADERS = {
     "User-Agent": (
