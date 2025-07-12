@@ -2,27 +2,32 @@ name: Otomoto Bot
 
 on:
   schedule:
-    - cron: "0 6 * * *"  # codziennie o 08:00 polskiego czasu (UTC+2)
+    - cron: "0 6 * * *"  # codziennie o 08:00 czasu polskiego
   workflow_dispatch:
+
+permissions:
+  contents: write  # 💡 to daje prawa do zapisu w repo
 
 jobs:
   run:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Pobierz repo
+      - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Instaluj zależności
-        run: |
-          pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-      - name: Uruchom bota
+      - name: Run bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
 
-      - name: Zapisz historię ogłoszeń
+      - name: Commit & push updated history
         run: |
           git config --global user.email "bot@example.com"
           git config --global user.name "OtomotoBot"
