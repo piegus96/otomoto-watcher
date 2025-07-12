@@ -1,39 +1,31 @@
-name: Otomoto Scraper
+name: Otomoto Bot
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 6,10,14,16,20 * * *'  # Uruchamia się o 6:00, 10:00, 14:00, 16:00, 20:00
+    - cron: "0 6 * * *"  # codziennie o 08:00 polskiego czasu (UTC+2)
+  workflow_dispatch:
 
 jobs:
-  build-and-run:
+  run:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - name: Pobierz repo
+        uses: actions/checkout@v3
 
-    - name: Debug directory contents
-      run: |
-        echo "📂 Pokaż bieżący katalog:"
-        pwd
-        echo "📁 Lista plików i folderów:"
-        ls -R .
+      - name: Instaluj zależności
+        run: |
+          pip install -r requirements.txt
 
-    - name: Install dependencies
-      run: |
-        pip install playwright requests
-        playwright install chromium
+      - name: Uruchom bota
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
 
-    - name: Run scraper
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        python ./scrape_otomoto.py
-
-    - name: Upload screenshot
-      uses: actions/upload-artifact@v4
-      with:
-        name: page.png
-        path: page.png
+      - name: Zapisz historię ogłoszeń
+        run: |
+          git config --global user.email "bot@example.com"
+          git config --global user.name "OtomotoBot"
+          git add sent_links.json
+          git commit -m "Aktualizacja historii ogłoszeń [bot]" || echo "Brak zmian"
+          git push
