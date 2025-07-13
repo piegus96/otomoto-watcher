@@ -74,35 +74,21 @@ def format_distance(loc_str: str) -> str:
     emoji = "🟢" if dist_km <= 100 else ("🟡" if dist_km <= 300 else "🔴")
     return f"{emoji} {dist_km} km"
 
-# Load and save price history
-def load_price_history() -> dict:
-    if os.path.exists(PRICE_FILE):
+# Load / save history files
+def load_json(path: str, default):
+    if os.path.exists(path):
         try:
-            return json.load(open(PRICE_FILE, 'r', encoding='utf-8'))
+            return json.load(open(path, encoding='utf-8'))
         except json.JSONDecodeError:
-            return {}
-    return {}
+            return default
+    return default
 
-def save_price_history(history: dict):
-    with open(PRICE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+def save_json(obj, path: str):
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
 
-# Load and save sent links
-def load_sent_links() -> set:
-    if os.path.exists(SENT_FILE):
-        try:
-            data = json.load(open(SENT_FILE, 'r', encoding='utf-8'))
-            return set(data if isinstance(data, list) else [])
-        except json.JSONDecodeError:
-            return set()
-    return set()
-
-def save_sent_links(links: set):
-    with open(SENT_FILE, 'w', encoding='utf-8') as f:
-        json.dump(list(links), f, ensure_ascii=False, indent=2)
-
-# Fetch offers list (with detail page parsing)
-def fetch_offers() -> list[tuple[dict,int]]:
+# Fetch offers with detail parse via embedded JSON
+def fetch_offers() -> list[tuple[dict, int]]:
     results = []
     page, max_pages = 1, None
     while True:
@@ -111,48 +97,35 @@ def fetch_offers() -> list[tuple[dict,int]]:
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
         if page == 1:
-            pages = [int(li.get_text(strip=True)) for li in soup.select('li.ooa-6ysn8b') if li.get_text(strip=True).isdigit()]
-            max_pages = max(pages) if pages else 1
+            nums = [int(li.get_text(strip=True)) for li in soup.select('li.ooa-6ysn8b') if li.get_text(strip=True).isdigit()]
+            max_pages = max(nums) if nums else 1
         articles = soup.find_all('article')
         if not articles:
             break
         for art in articles:
             a = art.select_one('h2 a[href]')
-            if not a:
-                continue
+            if not a: continue
             title = a.get_text(strip=True)
             link = a['href']
-            # Basic fields
             price_text = extract_text(art, 'div[class*=rz87wg] h3')
             price_val = parse_price(price_text)
             spec = extract_text(art, 'p[class*=w3crlp]')
             km, cm3 = parse_power_and_capacity(spec)
             location = extract_text(art, 'dd > p')
-
-                                    # Fetch detail page for VIN, first registration and plate
+            # Detail page embedded JSON
             vin = first_reg = plate = "❓ brak"
             try:
-                det_resp = requests.get(link, headers=HEADERS, timeout=15)
-                det_resp.raise_for_status()
-                det_soup = BeautifulSoup(det_resp.text, 'html.parser')
-                info = det_soup.select_one('div[data-testid="basic_information"]')
-                if info:
-                    vin_tag = info.select_one('div[data-testid="vin"] p')
-                    if vin_tag:
-                        vin = vin_tag.get_text(strip=True)
-                    reg_tag = info.select_one('div[data-testid="first_registration_date"] p')
-                    if reg_tag:
-                        first_reg = reg_tag.get_text(strip=True)
-                    plate_tag = info.select_one('div[data-testid="registration_number"] p')
-                    if plate_tag:
-                        plate = plate_tag.get_text(strip=True)
+                det = requests.get(link, headers=HEADERS, timeout=15).text
+                det_soup = BeautifulSoup(det, 'html.parser')
+                script = det_soup.find('script', id='__NEXT_DATA__')
+                if script:
+                    data_json = json.loads(script.string)
+                    ad = data_json.get('props', {}).get('pageProps', {}).get('ad', {})
+                    vin = ad.get('vin', vin)
+                    first_reg = ad.get('firstRegistrationDate', first_reg)
+                    plate = ad.get('registrationNumber', plate)
             except Exception:
                 pass
-            except Exception:
-                vin = first_reg = plate = "❓ brak"
-            except Exception:
-                vin = first_reg = plate = "❓ brak"
-
             data = {
                 'Tytuł': title,
                 'Cena': price_text,
@@ -193,9 +166,8 @@ def send_to_telegram(msg: str, photo_url: str=None, browse_url: str=None):
         requests.post(f"{base}/sendMessage", data=payload)
 
 if __name__ == '__main__':
-    # Load histories
-    price_history = load_price_history()
-    sent_links = load_sent_links()
+    price_history = load_json(PRICE_FILE, {})
+    sent_links = set(load_json(SENT_FILE, []))
     updated_links = False
     updated_prices = False
 
@@ -203,35 +175,30 @@ if __name__ == '__main__':
     for data, price_val in offers:
         link = data['Link']
         now = datetime.utcnow().isoformat()
-        # Price history
         hist = price_history.get(link, [])
         last = hist[-1]['price'] if hist else None
-        if last is None:
-            price_history[link] = [{'timestamp': now, 'price': price_val}]
+        if last is None or price_val != last:
+            entry = {'timestamp': now, 'price': price_val}
+            price_history.setdefault(link, []).append(entry)
             updated_prices = True
-        elif price_val != last:
-            price_history[link].append({'timestamp': now, 'price': price_val})
-            updated_prices = True
-            # Notify price change
-            diff = price_val - last
-            pct = abs(diff)/last*100
-            change = 'spadła' if diff<0 else 'wzrosła'
-            sign = '-' if diff<0 else '+'
-            msg = (
-                f"<b>{data['Tytuł']}</b>\n"
-                f"Cena {change} z {last:,} zł do {price_val:,} zł ({sign}{pct:.1f}%)\n"
-                f"📍 {data['📍 Lokalizacja']} | 🗺️ {data['🗺️ Odległość']}"
-            )
-            send_to_telegram(msg, photo_url=data.get('Zdjęcie'), browse_url=link)
-        # New link
+            if last is not None:
+                diff = price_val - last
+                pct = abs(diff)/last*100
+                change = 'spadła' if diff < 0 else 'wzrosła'
+                sign = '-' if diff < 0 else '+'
+                msg = (
+                    f"<b>{data['Tytuł']}</b>\n"
+                    f"Cena {change} z {last:,} zł do {price_val:,} zł ({sign}{pct:.1f}%)\n"
+                    f"📍 {data['📍 Lokalizacja']} | 🗺️ {data['🗺️ Odległość']}"
+                )
+                send_to_telegram(msg, photo_url=data.get('Zdjęcie'), browse_url=link)
         if link not in sent_links:
             msg = '\n'.join([f"<b>{k}</b>: {v}" for k,v in data.items() if k not in ['Zdjęcie','Link']])
             send_to_telegram(msg, photo_url=data.get('Zdjęcie'), browse_url=link)
             sent_links.add(link)
             updated_links = True
 
-    # Save
     if updated_prices:
-        save_price_history(price_history)
+        save_json(price_history, PRICE_FILE)
     if updated_links:
-        save_sent_links(sent_links)
+        save_json(list(sent_links), SENT_FILE)
