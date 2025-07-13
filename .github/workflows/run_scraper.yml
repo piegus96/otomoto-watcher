@@ -32,6 +32,11 @@ jobs:
         run: |
           # Utwórz puste pliki, jeśli ich nie ma
           touch sent_links.json price_history.json
+
+          # Skonfiguruj autora commita lokalnie
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
           git add sent_links.json price_history.json
           git commit -m "🛠️ Inicjalizacja plików historii [bot]" || echo "Brak zmian do zatwierdzenia"
           git push || echo "Brak zmian do wypchnięcia"
@@ -50,6 +55,8 @@ jobs:
       - name: Commit & push sent_links.json
         if: steps.sent_changes.outputs.changed == 'true'
         run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add sent_links.json
           git commit -m "🔄 Aktualizacja historii ogłoszeń [bot]"
           git push
@@ -68,6 +75,8 @@ jobs:
       - name: Commit & push price_history.json
         if: steps.price_changes.outputs.changed == 'true'
         run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add price_history.json
           git commit -m "🔄 Aktualizacja historii cen [bot]"
           git push
