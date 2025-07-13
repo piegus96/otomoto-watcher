@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import json
 import os
 import time
+import pandas as pd
 from datetime import datetime
 
 # Opcjonalne geokodowanie odległości
@@ -16,53 +17,7 @@ try:
 except ImportError:
     geopy_available = False
 
-
-def extract_text(soup, selector: str) -> str:
-    tag = soup.select_one(selector)
-    return tag.get_text(strip=True) if tag else "❓ brak"
-
-
-def parse_power_and_capacity(text: str) -> tuple[str, str]:
-    km = cm3 = "❓ brak"
-    if "KM" in text:
-        for part in text.split("•"):
-            part = part.strip()
-            if "KM" in part:
-                km = part
-            elif "cm³" in part or "cm3" in part:
-                cm3 = part
-    return km, cm3
-
-
-def parse_price(text: str) -> int:
-    digits = ''.join(filter(str.isdigit, text))
-    return int(digits) if digits else 0
-
-if geopy_available:
-    def geocode_location(loc_str: str):
-        if loc_str in location_cache:
-            return location_cache[loc_str]
-        try:
-            loc = geolocator.geocode(f"{loc_str}, Poland", timeout=10)
-            coords = (loc.latitude, loc.longitude) if loc else None
-        except Exception:
-            coords = None
-        location_cache[loc_str] = coords
-        return coords
-
-    def format_distance(loc_str: str) -> str:
-        coords = geocode_location(loc_str)
-        if not coords:
-            return "❓ odległość"
-        dist_km = int(geodesic(LODZ_COORDS, coords).km)
-        emoji = "🟢" if dist_km <= 100 else ("🟡" if dist_km <= 300 else "🔴")
-        return f"{emoji} {dist_km} km od Łodzi"
-else:
-    def format_distance(loc_str: str) -> str:
-        return "❓ odległość"
-
-# Stałe
-URL = (
+# Stałe\URL = (
     "https://www.otomoto.pl/osobowe/volvo/v60--v60-cross-country--"
     "v90--v90-cross-country/od-2020?search%5Bfilter_enum_damaged%5D=0&"
     "search%5Bfilter_enum_fuel_type%5D=diesel&"
@@ -77,150 +32,153 @@ PRICE_HISTORY_FILE = "price_history.json"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# Parsowanie i formatowanie
+def extract_text(soup, selector: str) -> str:
+    tag = soup.select_one(selector)
+    return tag.get_text(strip=True) if tag else "❓ brak"
 
+def parse_power_and_capacity(text: str) -> tuple[str, str]:
+    km = cm3 = "❓ brak"
+    if "KM" in text:
+        for part in text.split("•"):
+            part = part.strip()
+            if "KM" in part: km = part
+            elif "cm³" in part or "cm3" in part: cm3 = part
+    return km, cm3
+
+def parse_price(text: str) -> int:
+    digits = ''.join(filter(str.isdigit, text))
+    return int(digits) if digits else 0
+
+# Geokodowanie
+def format_distance(loc_str: str) -> str:
+    if not geopy_available or not loc_str:
+        return "❓ odległość"
+    if loc_str in location_cache:
+        coords = location_cache[loc_str]
+    else:
+        try:
+            loc = geolocator.geocode(f"{loc_str}, Poland", timeout=10)
+            coords = (loc.latitude, loc.longitude) if loc else None
+        except Exception:
+            coords = None
+        location_cache[loc_str] = coords
+    if not coords:
+        return "❓ odległość"
+    dist_km = int(geodesic(LODZ_COORDS, coords).km)
+    emoji = "🟢" if dist_km <= 100 else ("🟡" if dist_km <= 300 else "🔴")
+    return f"{emoji} {dist_km} km"
+
+# Pobieranie ofert
 def fetch_offers() -> list[dict]:
-    results = []
-    page = 1
-    max_pages = None
+    results, page, max_pages = [], 1, None
     while True:
         url = f"{URL}&page={page}" if page > 1 else URL
         resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         if page == 1:
-            pages = [int(li.get_text(strip=True)) for li in soup.select("li.ooa-6ysn8b") if li.get_text(strip=True).isdigit()]
-            max_pages = max(pages) if pages else 1
+            nums = [int(li.get_text(strip=True)) for li in soup.select("li.ooa-6ysn8b") if li.get_text(strip=True).isdigit()]
+            max_pages = max(nums) if nums else 1
         articles = soup.find_all("article")
         if not articles: break
         for art in articles:
-            h2 = art.find("h2")
-            a = h2.find("a", href=True) if h2 else None
+            a = art.find("h2") and art.find("h2").find("a", href=True)
             if not a: continue
-            link = a["href"]; title = a.get_text(strip=True)
-            mileage = extract_text(art, 'dd[data-parameter="mileage"]')
-            fuel = extract_text(art, 'dd[data-parameter="fuel_type"]')
-            gearbox = extract_text(art, 'dd[data-parameter="gearbox"]')
-            year = extract_text(art, 'dd[data-parameter="year"]')
-            location = extract_text(art, 'dd > p')
-            price = extract_text(art, 'div[class*=rz87wg] h3')
-            spec = extract_text(art, 'p[class*=w3crlp]')
-            km, cm3 = parse_power_and_capacity(spec)
-            img = art.find("img", src=True); img_url = img["src"] if img else "❓ brak"
-            results.append({
-                "Link": link, "Tytuł": title, "Cena": price,
-                "Rok produkcji": year, "Paliwo": fuel, "Skrzynia": gearbox,
-                "Lokalizacja": location, "Przebieg": mileage,
-                "Pojemność": cm3, "Moc (KM)": km,
-                "Odległość": format_distance(location), "Zdjęcie": img_url
-            })
+            title = a.get_text(strip=True)
+            link = a["href"]
+            data = {
+                "Tytuł": title,
+                "Link": link,
+                "Cena": extract_text(art, 'div[class*=rz87wg] h3'),
+                "Rok": extract_text(art, 'dd[data-parameter="year"]'),
+                "⛽ Paliwo": extract_text(art, 'dd[data-parameter="fuel_type"]'),
+                "⚙️ Skrzynia": extract_text(art, 'dd[data-parameter="gearbox"]'),
+                "📅 Przebieg": extract_text(art, 'dd[data-parameter="mileage"]'),
+                "📍 Lokalizacja": extract_text(art, 'dd > p'),
+                "Pojemność": parse_power_and_capacity(extract_text(art, 'p[class*=w3crlp]'))[1],
+                "Moc": parse_power_and_capacity(extract_text(art, 'p[class*=w3crlp]'))[0],
+            }
+            data["🗺️ Odległość"] = format_distance(data.get("📍 Lokalizacja"))
+            img = art.find("img", src=True)
+            data["Zdjęcie"] = img["src"] if img else None
+            results.append(data)
         page += 1; time.sleep(1)
         if page > max_pages: break
     return results
 
-
-def send_to_telegram(message: str, photo_url: str = None):
+# Wysyłka do Telegrama z HTML i przyciskiem
+def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
     base = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "parse_mode": "HTML"}
-    if photo_url and photo_url != "❓ brak":
-        payload.update({"photo": photo_url, "caption": message})
+    # Inline keyboard
+    if browse_url:
+        kb = {"inline_keyboard": [[{"text": "🔗 Zobacz", "url": browse_url}]]}
+        payload["reply_markup"] = json.dumps(kb)
+    if photo_url:
+        payload.update({"photo": photo_url, "caption": msg})
         requests.post(f"{base}/sendPhoto", data=payload)
     else:
-        payload.update({"text": message})
+        payload["text"] = msg
         requests.post(f"{base}/sendMessage", data=payload)
 
-
-def load_sent_links() -> set:
-    # obsługa pustego lub nieprawidłowego pliku
-    if os.path.exists(HISTORY_FILE):
+# Ładowanie / zapisywanie historii
+def load_json_set(path):
+    if os.path.exists(path):
         try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return set(data) if isinstance(data, list) else set()
-        except (json.JSONDecodeError, ValueError):
+            data = json.load(open(path, encoding="utf-8"))
+            return set(data if isinstance(data, list) else [])
+        except:
             return set()
     return set()
 
+def save_json(obj, path):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
 
-def save_sent_links(links: set):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(list(links), f, ensure_ascii=False, indent=2)
+# Generuj raport dzienny i wyślij jako CSV + podsumowanie
 
-
-def load_price_history() -> dict:
-    # obsługa pustego lub nieprawidłowego pliku
-    if os.path.exists(PRICE_HISTORY_FILE):
-        try:
-            with open(PRICE_HISTORY_FILE, "r", encoding="utf-8") as f:
-                raw = json.load(f)
-        except (json.JSONDecodeError, ValueError):
-            raw = {}
-        # migracja formatu
-        migrated = {}
-        now = datetime.utcnow().isoformat()
-        for link, entry in raw.items():
-            if isinstance(entry, int):
-                migrated[link] = [{"timestamp": now, "price": entry}]
-            elif isinstance(entry, list):
-                migrated[link] = entry
-        return migrated
-    # inicjalizacja historii
-    offers = fetch_offers()
-    history = {o['Link']: [{"timestamp": datetime.utcnow().isoformat(), "price": parse_price(o['Cena'])}] for o in offers}
-    with open(PRICE_HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
-    return history
-
-
-def save_price_history(history: dict):
-    with open(PRICE_HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
-
+def send_daily_report(offers: list[dict]):
+    df = pd.DataFrame(offers)
+    df["Cena_num"] = df["Cena"].apply(parse_price)
+    avg = df["Cena_num"].mean()
+    mn = df["Cena_num"].min()
+    mx = df["Cena_num"].max()
+    summary = (
+        f"📊 <b>Raport dzienny</b>\n"
+        f"Liczba ofert: {len(df)}\n"
+        f"Średnia cena: {avg:,.0f} zł\n"
+        f"Najniższa: {mn:,.0f} zł, Najwyższa: {mx:,.0f} zł"
+    )
+    # Zapis CSV\    csv_path = "report.csv"
+    df.to_csv(csv_path, index=False)
+    # Wyślij najpierw summary, potem plik
+    send_to_telegram(summary)
+    with open(csv_path, 'rb') as file:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument",
+            data={"chat_id": TELEGRAM_CHAT_ID},
+            files={"document": file}
+        )
 
 if __name__ == "__main__":
-    data = fetch_offers()
-    sent_links = load_sent_links()
-    price_history = load_price_history()
+    offers = fetch_offers()
+    sent_links = load_json_set(HISTORY_FILE)
+    price_history = load_json_set(PRICE_HISTORY_FILE)  # simple set for sent
+
+    # Wyślij nowe/zmienione
     updated = False
-
-    for item in data:
-        link = item['Link']
-        price = parse_price(item['Cena'])
-        now = datetime.utcnow().isoformat()
-
-        if link in price_history:
-            last_price = price_history[link][-1]['price']
-            if price != last_price:
-                diff = price - last_price
-                pct = abs(diff) / last_price * 100
-                change = "spadła" if diff < 0 else "wzrosła"
-                sign = "-" if diff < 0 else "+"
-                msg = (
-                    f"<b>{item['Tytuł']}</b>\n"
-                    f"Cena {change} z {last_price:,} zł do {price:,} zł ({sign}{pct:.1f}%)\n"
-                    f"{item['Rok produkcji']} | {item['Paliwo']} | {item['Skrzynia']}\n"
-                    f"{item['Pojemność']} | {item['Moc (KM)']}\n"
-                    f"{item['Przebieg']} | {item['Lokalizacja']}\n"
-                    f"{item['Odległość']}\n\n"
-                    f"👉 {link}"
-                )
-                send_to_telegram(msg, item['Zdjęcie'])
-                price_history[link].append({"timestamp": now, "price": price})
-                updated = True
-        else:
-            msg = (
-                f"<b>{item['Tytuł']}</b>\n"
-                f"{item['Cena']}\n"
-                f"{item['Rok produkcji']} | {item['Paliwo']} | {item['Skrzynia']}\n"
-                f"{item['Pojemność']} | {item['Moc (KM)']}\n"
-                f"{item['Przebieg']} | {item['Lokalizacja']}\n"
-                f"{item['Odległość']}\n\n"
-                    f"👉 {link}"
-            )
-            send_to_telegram(msg, item['Zdjęcie'])
+    for o in offers:
+        link = o["Link"]
+        if link not in sent_links:
+            # nowa oferta
+            msg = "\n".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k != 'Zdjęcie'])
+            send_to_telegram(msg, o.get('Zdjęcie'), browse_url=link)
             sent_links.add(link)
-            price_history[link] = [{"timestamp": now, "price": price}]
             updated = True
-
+    # Zapis sent_links
     if updated:
-        save_sent_links(sent_links)
-        save_price_history(price_history)
+        save_json(list(sent_links), HISTORY_FILE)
+    # Wyślij raport dzienny
+    if offers:
+        send_daily_report(offers)
