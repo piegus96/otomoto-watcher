@@ -41,7 +41,6 @@ def parse_power_and_capacity(text: str) -> tuple[str, str]:
 
 
 def parse_price(text: str) -> int:
-    # Usuń wszystkie znaki nie będące cyframi i zwróć jako int
     digits = ''.join(filter(str.isdigit, text))
     return int(digits) if digits else 0
 
@@ -136,6 +135,8 @@ def load_price_history() -> dict:
     if os.path.exists(PRICE_HISTORY_FILE):
         with open(PRICE_HISTORY_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
+    # jeśli pliku nie ma, twórz pusty plik
+    save_price_history({})
     return {}
 
 
