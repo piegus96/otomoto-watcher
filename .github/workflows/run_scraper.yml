@@ -2,11 +2,11 @@ name: Otomoto Bot
 
 on:
   schedule:
-    - cron: "0 6 * * *"  # codziennie o 08:00 czasu polskiego
+    - cron: "0 6 * * *"    # codziennie o 06:00 czasu polskiego (UTC+2)
   workflow_dispatch:
 
 permissions:
-  contents: write  # 💡 to daje prawa do zapisu w repo
+  contents: write
 
 jobs:
   run:
@@ -27,12 +27,26 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
 
-      - name: Commit & push updated history
+      - name: Commit sent_links.json if changed
         run: |
-          git config --global user.email "bot@example.com"
-          git config --global user.name "OtomotoBot"
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add sent_links.json
-          git commit -m "Aktualizacja historii ogłoszeń [bot]" || echo "Brak zmian"
+          git commit -m "Aktualizacja historii ogłoszeń [bot]" || echo "Brak zmian sent_links.json"
+          git push || echo "Brak zmian do wypchnięcia"
+
+      - name: Check for price_history.json changes
+        id: price_changes
+        run: |
+          git diff --quiet price_history.json || echo "changed=true" > $GITHUB_OUTPUT
+
+      - name: Commit & push price_history.json if changed
+        if: steps.price_changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add price_history.json
-          git commit -m "Aktualizacja historii cen"
+          git commit -m "Aktualizacja historii cen [bot]"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
