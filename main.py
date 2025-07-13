@@ -29,8 +29,8 @@ URL = (
     "search%5Badvanced_search_expanded%5D=true"
 )
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-HISTORY_FILE = "sent_links.json"
-PRICE_HISTORY_FILE = "price_history.json"
+SENT_FILE = "sent_links.json"
+PRICE_FILE = "price_history.json"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -39,7 +39,7 @@ def extract_text(soup, selector: str) -> str:
     tag = soup.select_one(selector)
     return tag.get_text(strip=True) if tag else "❓ brak"
 
-# Poprawione parsowanie mocy i pojemności
+# Parsowanie mocy i pojemności
 def parse_power_and_capacity(text: str) -> tuple[str, str]:
     km = "❓ brak"
     cm3 = "❓ brak"
@@ -75,6 +75,35 @@ def format_distance(loc_str: str) -> str:
     emoji = "🟢" if dist_km <= 100 else ("🟡" if dist_km <= 300 else "🔴")
     return f"{emoji} {dist_km} km"
 
+# Wczytywanie i zapis historii cen
+def load_price_history() -> dict:
+    if os.path.exists(PRICE_FILE):
+        try:
+            with open(PRICE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+def save_price_history(history: dict):
+    with open(PRICE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+# Wczytywanie i zapis wysłanych linków
+def load_sent_links() -> set:
+    if os.path.exists(SENT_FILE):
+        try:
+            with open(SENT_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return set(data if isinstance(data, list) else [])
+        except json.JSONDecodeError:
+            return set()
+    return set()
+
+def save_sent_links(links: set):
+    with open(SENT_FILE, 'w', encoding='utf-8') as f:
+        json.dump(list(links), f, ensure_ascii=False, indent=2)
+
 # Pobieranie ofert
 def fetch_offers() -> list[dict]:
     results, page, max_pages = [], 1, None
@@ -95,24 +124,27 @@ def fetch_offers() -> list[dict]:
                 continue
             title = a.get_text(strip=True)
             link = a["href"]
+            price_text = extract_text(art, 'div[class*=rz87wg] h3')
+            price_val = parse_price(price_text)
             spec = extract_text(art, 'p[class*=w3crlp]')
             km, cm3 = parse_power_and_capacity(spec)
+            location = extract_text(art, 'dd > p')
             data = {
                 "Tytuł": title,
+                "Cena": price_text,
                 "Link": link,
-                "Cena": extract_text(art, 'div[class*=rz87wg] h3'),
                 "Rok": extract_text(art, 'dd[data-parameter="year"]'),
                 "⛽ Paliwo": extract_text(art, 'dd[data-parameter="fuel_type"]'),
                 "⚙️ Skrzynia": extract_text(art, 'dd[data-parameter="gearbox"]'),
                 "📅 Przebieg": extract_text(art, 'dd[data-parameter="mileage"]'),
-                "📍 Lokalizacja": extract_text(art, 'dd > p'),
+                "📍 Lokalizacja": location,
                 "Pojemność": cm3,
                 "Moc (KM)": km,
-                "🗺️ Odległość": format_distance(extract_text(art, 'dd > p'))
+                "🗺️ Odległość": format_distance(location)
             }
             img = art.find("img", src=True)
             data["Zdjęcie"] = img["src"] if img else None
-            results.append(data)
+            results.append((data, price_val))
         page += 1
         time.sleep(1)
         if page > max_pages:
@@ -133,52 +165,47 @@ def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
         payload["text"] = msg
         requests.post(f"{base}/sendMessage", data=payload)
 
-# Historia
-def load_json_set(path):
-    if os.path.exists(path):
-        try:
-            data = json.load(open(path, encoding="utf-8"))
-            return set(data) if isinstance(data, list) else set()
-        except:
-            return set()
-    return set()
-
-
-def save_json(obj, path):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2)
-
-# Raport dzienny
-def send_daily_report(offers: list[dict]):
-    df = pd.DataFrame(offers)
-    df["Cena_num"] = df["Cena"].apply(parse_price)
-    avg, mn, mx = df["Cena_num"].mean(), df["Cena_num"].min(), df["Cena_num"].max()
-    summary = (
-        f"📊 <b>Raport dzienny</b>\nLiczba ofert: {len(df)}\n"
-        f"Średnia cena: {avg:,.0f} zł\nNajniższa: {mn:,.0f} zł, Najwyższa: {mx:,.0f} zł"
-    )
-    csv_path = "report.csv"
-    df.to_csv(csv_path, index=False)
-    send_to_telegram(summary)
-    with open(csv_path, 'rb') as file:
-        requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument",
-            data={"chat_id": TELEGRAM_CHAT_ID},
-            files={"document": file}
-        )
-
 if __name__ == "__main__":
-    offers = fetch_offers()
-    sent_links = load_json_set(HISTORY_FILE)
-    updated = False
-    for o in offers:
-        link = o.get("Link")
-        if link and link not in sent_links:
-            msg = "\n".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k not in ["Zdjęcie", "Link"]])
-            send_to_telegram(msg, photo_url=o.get("Zdjęcie"), browse_url=link)
+    price_history = load_price_history()
+    sent_links = load_sent_links()
+    updated_links = False
+    updated_prices = False
+
+    offers = fetch_offers()  # list of (data, price_val)
+    for data, price_val in offers:
+        link = data["Link"]
+        now = datetime.utcnow().isoformat()
+        # handle price history
+        hist = price_history.get(link, [])
+        last_price = hist[-1]["price"] if hist else None
+        if last_price is None:
+            # new link: init history
+            price_history[link] = [{"timestamp": now, "price": price_val}]
+            updated_prices = True
+        elif price_val != last_price:
+            # price changed
+            price_history[link].append({"timestamp": now, "price": price_val})
+            updated_prices = True
+            # send update
+            diff = price_val - last_price
+            pct = abs(diff) / last_price * 100
+            change = "spadła" if diff < 0 else "wzrosła"
+            sign = "-" if diff < 0 else "+"
+            msg = (
+                f"<b>{data['Tytuł']}</b>\n"
+                f"Cena {change} z {last_price:,} zł do {price_val:,} zł ({sign}{pct:.1f}%)\n"
+                f"📍 {data['📍 Lokalizacja']} | 🗺️ {data['🗺️ Odległość']}"
+            )
+            send_to_telegram(msg, photo_url=data.get("Zdjęcie"), browse_url=link)
+        # handle new link notification
+        if link not in sent_links:
+            msg = "\n".join([f"<b>{k}</b>: {v}" for k, v in data.items() if k not in ["Zdjęcie", "Link"]])
+            send_to_telegram(msg, photo_url=data.get("Zdjęcie"), browse_url=link)
             sent_links.add(link)
-            updated = True
-    if updated:
-        save_json(list(sent_links), HISTORY_FILE)
-    if offers:
-        send_daily_report(offers)
+            updated_links = True
+
+    # save histories
+    if updated_prices:
+        save_price_history(price_history)
+    if updated_links:
+        save_sent_links(sent_links)
