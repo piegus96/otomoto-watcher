@@ -17,7 +17,8 @@ try:
 except ImportError:
     geopy_available = False
 
-# Stałe\URL = (
+# Stałe
+URL = (
     "https://www.otomoto.pl/osobowe/volvo/v60--v60-cross-country--"
     "v90--v90-cross-country/od-2020?search%5Bfilter_enum_damaged%5D=0&"
     "search%5Bfilter_enum_fuel_type%5D=diesel&"
@@ -42,8 +43,10 @@ def parse_power_and_capacity(text: str) -> tuple[str, str]:
     if "KM" in text:
         for part in text.split("•"):
             part = part.strip()
-            if "KM" in part: km = part
-            elif "cm³" in part or "cm3" in part: cm3 = part
+            if "KM" in part:
+                km = part
+            elif "cm³" in part or "cm3" in part:
+                cm3 = part
     return km, cm3
 
 def parse_price(text: str) -> int:
@@ -81,10 +84,12 @@ def fetch_offers() -> list[dict]:
             nums = [int(li.get_text(strip=True)) for li in soup.select("li.ooa-6ysn8b") if li.get_text(strip=True).isdigit()]
             max_pages = max(nums) if nums else 1
         articles = soup.find_all("article")
-        if not articles: break
+        if not articles:
+            break
         for art in articles:
             a = art.find("h2") and art.find("h2").find("a", href=True)
-            if not a: continue
+            if not a:
+                continue
             title = a.get_text(strip=True)
             link = a["href"]
             data = {
@@ -97,21 +102,22 @@ def fetch_offers() -> list[dict]:
                 "📅 Przebieg": extract_text(art, 'dd[data-parameter="mileage"]'),
                 "📍 Lokalizacja": extract_text(art, 'dd > p'),
                 "Pojemność": parse_power_and_capacity(extract_text(art, 'p[class*=w3crlp]'))[1],
-                "Moc": parse_power_and_capacity(extract_text(art, 'p[class*=w3crlp]'))[0],
+                "Moc (KM)": parse_power_and_capacity(extract_text(art, 'p[class*=w3crlp]'))[0],
             }
             data["🗺️ Odległość"] = format_distance(data.get("📍 Lokalizacja"))
             img = art.find("img", src=True)
             data["Zdjęcie"] = img["src"] if img else None
             results.append(data)
-        page += 1; time.sleep(1)
-        if page > max_pages: break
+        page += 1
+        time.sleep(1)
+        if page > max_pages:
+            break
     return results
 
 # Wysyłka do Telegrama z HTML i przyciskiem
 def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
     base = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "parse_mode": "HTML"}
-    # Inline keyboard
     if browse_url:
         kb = {"inline_keyboard": [[{"text": "🔗 Zobacz", "url": browse_url}]]}
         payload["reply_markup"] = json.dumps(kb)
@@ -137,7 +143,6 @@ def save_json(obj, path):
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 # Generuj raport dzienny i wyślij jako CSV + podsumowanie
-
 def send_daily_report(offers: list[dict]):
     df = pd.DataFrame(offers)
     df["Cena_num"] = df["Cena"].apply(parse_price)
@@ -150,9 +155,8 @@ def send_daily_report(offers: list[dict]):
         f"Średnia cena: {avg:,.0f} zł\n"
         f"Najniższa: {mn:,.0f} zł, Najwyższa: {mx:,.0f} zł"
     )
-    # Zapis CSV\    csv_path = "report.csv"
+    csv_path = "report.csv"
     df.to_csv(csv_path, index=False)
-    # Wyślij najpierw summary, potem plik
     send_to_telegram(summary)
     with open(csv_path, 'rb') as file:
         requests.post(
@@ -164,21 +168,15 @@ def send_daily_report(offers: list[dict]):
 if __name__ == "__main__":
     offers = fetch_offers()
     sent_links = load_json_set(HISTORY_FILE)
-    price_history = load_json_set(PRICE_HISTORY_FILE)  # simple set for sent
-
-    # Wyślij nowe/zmienione
     updated = False
     for o in offers:
         link = o["Link"]
         if link not in sent_links:
-            # nowa oferta
             msg = "\n".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k != 'Zdjęcie'])
             send_to_telegram(msg, o.get('Zdjęcie'), browse_url=link)
             sent_links.add(link)
             updated = True
-    # Zapis sent_links
     if updated:
         save_json(list(sent_links), HISTORY_FILE)
-    # Wyślij raport dzienny
     if offers:
         send_daily_report(offers)
