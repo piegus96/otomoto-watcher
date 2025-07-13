@@ -101,7 +101,7 @@ def save_sent_links(links: set):
     with open(SENT_FILE, 'w', encoding='utf-8') as f:
         json.dump(list(links), f, ensure_ascii=False, indent=2)
 
-# Fetch offers list
+# Fetch offers list (with detail page parsing)
 def fetch_offers() -> list[tuple[dict,int]]:
     results = []
     page, max_pages = 1, None
@@ -118,18 +118,30 @@ def fetch_offers() -> list[tuple[dict,int]]:
             break
         for art in articles:
             a = art.select_one('h2 a[href]')
-            if not a: continue
+            if not a:
+                continue
             title = a.get_text(strip=True)
             link = a['href']
+            # Basic fields
             price_text = extract_text(art, 'div[class*=rz87wg] h3')
             price_val = parse_price(price_text)
             spec = extract_text(art, 'p[class*=w3crlp]')
             km, cm3 = parse_power_and_capacity(spec)
             location = extract_text(art, 'dd > p')
-            # New fields: VIN, first registration, plate
-            vin = extract_text(art, 'dd[data-parameter="vin"]')
-            first_reg = extract_text(art, 'dd[data-parameter="first_registration_date"]')
-            plate = extract_text(art, 'dd[data-parameter="registration_number"]')
+
+                        # Fetch detail page for VIN, first registration and plate
+            try:
+                det_resp = requests.get(link, headers=HEADERS, timeout=15)
+                det_resp.raise_for_status()
+                det_soup = BeautifulSoup(det_resp.text, 'html.parser')
+                vin = extract_text(det_soup, 'div[data-testid="vin"] p')
+                first_reg = extract_text(det_soup, 'div[data-testid="first_registration_date"] p')
+                plate = extract_text(det_soup, 'div[data-testid="registration_number"] p')
+            except Exception:
+                vin = first_reg = plate = "❓ brak"
+            except Exception:
+                vin = first_reg = plate = "❓ brak"
+
             data = {
                 'Tytuł': title,
                 'Cena': price_text,
