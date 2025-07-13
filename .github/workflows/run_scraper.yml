@@ -27,18 +27,35 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
 
-      - name: Commit sent_links.json if changed
+      - name: Check for sent_links.json changes
+        id: sent_changes
+        run: |
+          # jeśli plik istnieje i ma zmiany, ustaw output
+          if [ -f sent_links.json ] && ! git diff --quiet sent_links.json; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit & push sent_links.json if changed
+        if: steps.sent_changes.outputs.changed == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add sent_links.json
-          git commit -m "Aktualizacja historii ogłoszeń [bot]" || echo "Brak zmian sent_links.json"
-          git push || echo "Brak zmian do wypchnięcia"
+          git commit -m "Aktualizacja historii ogłoszeń [bot]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for price_history.json changes
         id: price_changes
         run: |
-          git diff --quiet price_history.json || echo "changed=true" > $GITHUB_OUTPUT
+          if [ -f price_history.json ] && ! git diff --quiet price_history.json; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Commit & push price_history.json if changed
         if: steps.price_changes.outputs.changed == 'true'
