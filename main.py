@@ -129,14 +129,25 @@ def fetch_offers() -> list[tuple[dict,int]]:
             km, cm3 = parse_power_and_capacity(spec)
             location = extract_text(art, 'dd > p')
 
-                        # Fetch detail page for VIN, first registration and plate
+                                    # Fetch detail page for VIN, first registration and plate
+            vin = first_reg = plate = "❓ brak"
             try:
                 det_resp = requests.get(link, headers=HEADERS, timeout=15)
                 det_resp.raise_for_status()
                 det_soup = BeautifulSoup(det_resp.text, 'html.parser')
-                vin = extract_text(det_soup, 'div[data-testid="vin"] p')
-                first_reg = extract_text(det_soup, 'div[data-testid="first_registration_date"] p')
-                plate = extract_text(det_soup, 'div[data-testid="registration_number"] p')
+                info = det_soup.select_one('div[data-testid="basic_information"]')
+                if info:
+                    vin_tag = info.select_one('div[data-testid="vin"] p')
+                    if vin_tag:
+                        vin = vin_tag.get_text(strip=True)
+                    reg_tag = info.select_one('div[data-testid="first_registration_date"] p')
+                    if reg_tag:
+                        first_reg = reg_tag.get_text(strip=True)
+                    plate_tag = info.select_one('div[data-testid="registration_number"] p')
+                    if plate_tag:
+                        plate = plate_tag.get_text(strip=True)
+            except Exception:
+                pass
             except Exception:
                 vin = first_reg = plate = "❓ brak"
             except Exception:
