@@ -34,9 +34,11 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # Parsowanie i formatowanie
+
 def extract_text(soup, selector: str) -> str:
     tag = soup.select_one(selector)
     return tag.get_text(strip=True) if tag else "❓ brak"
+
 
 def parse_power_and_capacity(text: str) -> tuple[str, str]:
     km = cm3 = "❓ brak"
@@ -49,11 +51,13 @@ def parse_power_and_capacity(text: str) -> tuple[str, str]:
                 cm3 = part
     return km, cm3
 
+
 def parse_price(text: str) -> int:
     digits = ''.join(filter(str.isdigit, text))
     return int(digits) if digits else 0
 
 # Geokodowanie
+
 def format_distance(loc_str: str) -> str:
     if not geopy_available or not loc_str:
         return "❓ odległość"
@@ -63,7 +67,7 @@ def format_distance(loc_str: str) -> str:
         try:
             loc = geolocator.geocode(f"{loc_str}, Poland", timeout=10)
             coords = (loc.latitude, loc.longitude) if loc else None
-        except Exception:
+        except:
             coords = None
         location_cache[loc_str] = coords
     if not coords:
@@ -73,6 +77,7 @@ def format_distance(loc_str: str) -> str:
     return f"{emoji} {dist_km} km"
 
 # Pobieranie ofert
+
 def fetch_offers() -> list[dict]:
     results, page, max_pages = [], 1, None
     while True:
@@ -87,7 +92,8 @@ def fetch_offers() -> list[dict]:
         if not articles:
             break
         for art in articles:
-            a = art.find("h2") and art.find("h2").find("a", href=True)
+            h2 = art.find("h2")
+            a = h2.find("a", href=True) if h2 else None
             if not a:
                 continue
             title = a.get_text(strip=True)
@@ -115,6 +121,7 @@ def fetch_offers() -> list[dict]:
     return results
 
 # Wysyłka do Telegrama z HTML i przyciskiem
+
 def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
     base = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "parse_mode": "HTML"}
@@ -129,20 +136,23 @@ def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
         requests.post(f"{base}/sendMessage", data=payload)
 
 # Ładowanie / zapisywanie historii
+
 def load_json_set(path):
     if os.path.exists(path):
         try:
             data = json.load(open(path, encoding="utf-8"))
-            return set(data if isinstance(data, list) else [])
+            return set(data) if isinstance(data, list) else set()
         except:
             return set()
     return set()
+
 
 def save_json(obj, path):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 # Generuj raport dzienny i wyślij jako CSV + podsumowanie
+
 def send_daily_report(offers: list[dict]):
     df = pd.DataFrame(offers)
     df["Cena_num"] = df["Cena"].apply(parse_price)
@@ -172,6 +182,12 @@ if __name__ == "__main__":
     for o in offers:
         link = o["Link"]
         if link not in sent_links:
-                                    msg = "
-".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k not in ['Zdjęcie','Link']])
-".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k not in ['Zdjęcie','Link']])
+            # Budowanie wiadomości bez wyświetlania surowych linków
+            msg = "\n".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k not in ["Zdjęcie", "Link"]])
+            send_to_telegram(msg, photo_url=o.get("Zdjęcie"), browse_url=link)
+            sent_links.add(link)
+            updated = True
+    if updated:
+        save_json(list(sent_links), HISTORY_FILE)
+    if offers:
+        send_daily_report(offers)
