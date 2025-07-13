@@ -2,7 +2,10 @@ name: Otomoto Bot
 
 on:
   schedule:
-    - cron: "0 6 * * *"    # codziennie o 06:00 czasu polskiego (UTC+2)
+       # lato CEST (UTC+2): 4,6,8,…,20 → 6:00–22:00
+    - cron: "0 4-20/2 * 3-10 *"
+    # zima CET (UTC+1): 5,7,9,…,21 → 6:00–22:00
+    - cron: "0 5-21/2 * 11-2 *"
   workflow_dispatch:
 
 permissions:
