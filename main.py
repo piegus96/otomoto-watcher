@@ -144,13 +144,27 @@ def save_sent_links(sent_links: set):
 
 
 def load_price_history() -> dict:
+    # Wczytaj historię z pliku lub zainicjalizuj przy pierwszym uruchomieniu
     if os.path.exists(PRICE_HISTORY_FILE):
         with open(PRICE_HISTORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    # Pierwsze uruchomienie: inicjalizacja historii cen
+            raw = json.load(f)
+        # Migracja ze starego formatu {link: int}
+        migrated = {}
+        now = datetime.utcnow().isoformat()
+        for link, entry in raw.items():
+            if isinstance(entry, int):
+                # Stary wpis: tylko cena -> zamień na listę z jednym wpisem
+                migrated[link] = [{"timestamp": now, "price": entry}]
+            elif isinstance(entry, list):
+                migrated[link] = entry
+            else:
+                # Nieoczekiwany format, pomiń
+                continue
+        return migrated
+    # Brak pliku: inicjalizacja pełnej historii
     offers = fetch_offers()
     history = {
-        o["Link"]: [{"timestamp": datetime.utcnow().isoformat(), "price": parse_price(o["Cena"])}]
+        o["Link"]: [{"timestamp": datetime.utcnow().isoformat(), "price": parse_price(o["Cena"]) }]
         for o in offers
     }
     with open(PRICE_HISTORY_FILE, "w", encoding="utf-8") as f:
