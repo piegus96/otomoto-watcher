@@ -4,6 +4,7 @@ import json
 import os
 import time
 import pandas as pd
+import re
 from datetime import datetime
 
 # Opcjonalne geokodowanie odległości
@@ -33,31 +34,35 @@ PRICE_HISTORY_FILE = "price_history.json"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Parsowanie i formatowanie
-
+# Parsowanie tekstu pomocnicze
 def extract_text(soup, selector: str) -> str:
     tag = soup.select_one(selector)
     return tag.get_text(strip=True) if tag else "❓ brak"
 
-
+# Poprawione parsowanie mocy i pojemności
 def parse_power_and_capacity(text: str) -> tuple[str, str]:
-    km = cm3 = "❓ brak"
-    if "KM" in text:
-        for part in text.split("•"):
-            part = part.strip()
-            if "KM" in part:
-                km = part
-            elif "cm³" in part or "cm3" in part:
-                cm3 = part
+    """
+    Parsuje pojemność (cm3) i moc (KM) z tekstu specyfikacji.
+    Zwraca krotkę (moc, pojemność).
+    """
+    km = "❓ brak"
+    cm3 = "❓ brak"
+    # pojemność: liczby + cm3 lub cm³
+    cm3_match = re.search(r"(\d{2,5})\s?cm(?:3|³)", text)
+    if cm3_match:
+        cm3 = f"{cm3_match.group(1)} cm3"
+    # moc: liczby + KM
+    km_match = re.search(r"(\d{2,4})\s?KM", text)
+    if km_match:
+        km = f"{km_match.group(1)} KM"
     return km, cm3
 
-
+# Parsowanie ceny na int
 def parse_price(text: str) -> int:
     digits = ''.join(filter(str.isdigit, text))
     return int(digits) if digits else 0
 
-# Geokodowanie
-
+# Formatowanie dystansu
 def format_distance(loc_str: str) -> str:
     if not geopy_available or not loc_str:
         return "❓ odległość"
@@ -77,8 +82,7 @@ def format_distance(loc_str: str) -> str:
     return f"{emoji} {dist_km} km"
 
 # Pobieranie ofert
-
-def fetch_offers() -> list[dict]:
+ def fetch_offers() -> list[dict]:
     results, page, max_pages = [], 1, None
     while True:
         url = f"{URL}&page={page}" if page > 1 else URL
@@ -92,12 +96,13 @@ def fetch_offers() -> list[dict]:
         if not articles:
             break
         for art in articles:
-            h2 = art.find("h2")
-            a = h2.find("a", href=True) if h2 else None
+            a = art.select_one("h2 a[href]")
             if not a:
                 continue
             title = a.get_text(strip=True)
             link = a["href"]
+            spec = extract_text(art, 'p[class*=w3crlp]')
+            km, cm3 = parse_power_and_capacity(spec)
             data = {
                 "Tytuł": title,
                 "Link": link,
@@ -107,10 +112,10 @@ def fetch_offers() -> list[dict]:
                 "⚙️ Skrzynia": extract_text(art, 'dd[data-parameter="gearbox"]'),
                 "📅 Przebieg": extract_text(art, 'dd[data-parameter="mileage"]'),
                 "📍 Lokalizacja": extract_text(art, 'dd > p'),
-                "Pojemność": parse_power_and_capacity(extract_text(art, 'p[class*=w3crlp]'))[1],
-                "Moc (KM)": parse_power_and_capacity(extract_text(art, 'p[class*=w3crlp]'))[0],
+                "Pojemność": cm3,
+                "Moc (KM)": km,
+                "🗺️ Odległość": format_distance(extract_text(art, 'dd > p'))
             }
-            data["🗺️ Odległość"] = format_distance(data.get("📍 Lokalizacja"))
             img = art.find("img", src=True)
             data["Zdjęcie"] = img["src"] if img else None
             results.append(data)
@@ -120,9 +125,8 @@ def fetch_offers() -> list[dict]:
             break
     return results
 
-# Wysyłka do Telegrama z HTML i przyciskiem
-
-def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
+# Wysyłka do Telegrama
+ def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
     base = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "parse_mode": "HTML"}
     if browse_url:
@@ -135,9 +139,8 @@ def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
         payload["text"] = msg
         requests.post(f"{base}/sendMessage", data=payload)
 
-# Ładowanie / zapisywanie historii
-
-def load_json_set(path):
+# Historia
+ def load_json_set(path):
     if os.path.exists(path):
         try:
             data = json.load(open(path, encoding="utf-8"))
@@ -146,24 +149,18 @@ def load_json_set(path):
             return set()
     return set()
 
-
 def save_json(obj, path):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
-# Generuj raport dzienny i wyślij jako CSV + podsumowanie
-
-def send_daily_report(offers: list[dict]):
+# Raport dzienny
+ def send_daily_report(offers: list[dict]):
     df = pd.DataFrame(offers)
     df["Cena_num"] = df["Cena"].apply(parse_price)
-    avg = df["Cena_num"].mean()
-    mn = df["Cena_num"].min()
-    mx = df["Cena_num"].max()
+    avg, mn, mx = df["Cena_num"].mean(), df["Cena_num"].min(), df["Cena_num"].max()
     summary = (
-        f"📊 <b>Raport dzienny</b>\n"
-        f"Liczba ofert: {len(df)}\n"
-        f"Średnia cena: {avg:,.0f} zł\n"
-        f"Najniższa: {mn:,.0f} zł, Najwyższa: {mx:,.0f} zł"
+        f"📊 <b>Raport dzienny</b>\nLiczba ofert: {len(df)}\n"
+        f"Średnia cena: {avg:,.0f} zł\nNajniższa: {mn:,.0f} zł, Najwyższa: {mx:,.0f} zł"
     )
     csv_path = "report.csv"
     df.to_csv(csv_path, index=False)
@@ -180,9 +177,8 @@ if __name__ == "__main__":
     sent_links = load_json_set(HISTORY_FILE)
     updated = False
     for o in offers:
-        link = o["Link"]
-        if link not in sent_links:
-            # Budowanie wiadomości bez wyświetlania surowych linków
+        link = o.get("Link")
+        if link and link not in sent_links:
             msg = "\n".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k not in ["Zdjęcie", "Link"]])
             send_to_telegram(msg, photo_url=o.get("Zdjęcie"), browse_url=link)
             sent_links.add(link)
