@@ -71,7 +71,7 @@ URL = (
     "search%5Bfilter_float_price%3Ato%5D=140000&search%5Border%5D=relevance_web&"
     "search%5Badvanced_search_expanded%5D=true"
 )
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115 Safari/537.36"}
+HEADERS = {"User-Agent": "Mozilla/5.0"}
 HISTORY_FILE = "sent_links.json"
 PRICE_HISTORY_FILE = "price_history.json"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -87,22 +87,16 @@ def fetch_offers() -> list[dict]:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
-
         if page == 1:
             pages = [int(li.get_text(strip=True)) for li in soup.select("li.ooa-6ysn8b") if li.get_text(strip=True).isdigit()]
             max_pages = max(pages) if pages else 1
-
         articles = soup.find_all("article")
-        if not articles:
-            break
-
+        if not articles: break
         for art in articles:
             h2 = art.find("h2")
             a = h2.find("a", href=True) if h2 else None
-            if not a:
-                continue
-            link = a["href"]
-            title = a.get_text(strip=True)
+            if not a: continue
+            link = a["href"]; title = a.get_text(strip=True)
             mileage = extract_text(art, 'dd[data-parameter="mileage"]')
             fuel = extract_text(art, 'dd[data-parameter="fuel_type"]')
             gearbox = extract_text(art, 'dd[data-parameter="gearbox"]')
@@ -111,27 +105,16 @@ def fetch_offers() -> list[dict]:
             price = extract_text(art, 'div[class*=rz87wg] h3')
             spec = extract_text(art, 'p[class*=w3crlp]')
             km, cm3 = parse_power_and_capacity(spec)
-            img = art.find("img", src=True)
-            img_url = img["src"] if img else "❓ brak"
-
+            img = art.find("img", src=True); img_url = img["src"] if img else "❓ brak"
             results.append({
-                "Link": link,
-                "Tytuł": title,
-                "Cena": price,
-                "Rok produkcji": year,
-                "Paliwo": fuel,
-                "Skrzynia": gearbox,
-                "Lokalizacja": location,
-                "Przebieg": mileage,
-                "Pojemność": cm3,
-                "Moc (KM)": km,
-                "Odległość": format_distance(location),
-                "Zdjęcie": img_url
+                "Link": link, "Tytuł": title, "Cena": price,
+                "Rok produkcji": year, "Paliwo": fuel, "Skrzynia": gearbox,
+                "Lokalizacja": location, "Przebieg": mileage,
+                "Pojemność": cm3, "Moc (KM)": km,
+                "Odległość": format_distance(location), "Zdjęcie": img_url
             })
-        page += 1
-        time.sleep(1)
-        if page > max_pages:
-            break
+        page += 1; time.sleep(1)
+        if page > max_pages: break
     return results
 
 
@@ -147,9 +130,14 @@ def send_to_telegram(message: str, photo_url: str = None):
 
 
 def load_sent_links() -> set:
+    # obsługa pustego lub nieprawidłowego pliku
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            return set(json.load(f))
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return set(data) if isinstance(data, list) else set()
+        except (json.JSONDecodeError, ValueError):
+            return set()
     return set()
 
 
@@ -159,18 +147,23 @@ def save_sent_links(links: set):
 
 
 def load_price_history() -> dict:
+    # obsługa pustego lub nieprawidłowego pliku
     if os.path.exists(PRICE_HISTORY_FILE):
-        with open(PRICE_HISTORY_FILE, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-        # migracja starego formatu
+        try:
+            with open(PRICE_HISTORY_FILE, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            raw = {}
+        # migracja formatu
         migrated = {}
+        now = datetime.utcnow().isoformat()
         for link, entry in raw.items():
             if isinstance(entry, int):
-                migrated[link] = [{"timestamp": datetime.utcnow().isoformat(), "price": entry}]
+                migrated[link] = [{"timestamp": now, "price": entry}]
             elif isinstance(entry, list):
                 migrated[link] = entry
         return migrated
-    # brak pliku -> inicjalizacja
+    # inicjalizacja historii
     offers = fetch_offers()
     history = {o['Link']: [{"timestamp": datetime.utcnow().isoformat(), "price": parse_price(o['Cena'])}] for o in offers}
     with open(PRICE_HISTORY_FILE, "w", encoding="utf-8") as f:
@@ -221,7 +214,7 @@ if __name__ == "__main__":
                 f"{item['Pojemność']} | {item['Moc (KM)']}\n"
                 f"{item['Przebieg']} | {item['Lokalizacja']}\n"
                 f"{item['Odległość']}\n\n"
-                f"👉 {link}"
+                    f"👉 {link}"
             )
             send_to_telegram(msg, item['Zdjęcie'])
             sent_links.add(link)
