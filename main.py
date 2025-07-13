@@ -172,11 +172,5 @@ if __name__ == "__main__":
     for o in offers:
         link = o["Link"]
         if link not in sent_links:
-            msg = "\n".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k != 'Zdjęcie'])
-            send_to_telegram(msg, o.get('Zdjęcie'), browse_url=link)
-            sent_links.add(link)
-            updated = True
-    if updated:
-        save_json(list(sent_links), HISTORY_FILE)
-    if offers:
-        send_daily_report(offers)
+                        msg = "
+".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k not in ['Zdjęcie','Link']])
