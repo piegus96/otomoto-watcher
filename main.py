@@ -41,17 +41,11 @@ def extract_text(soup, selector: str) -> str:
 
 # Poprawione parsowanie mocy i pojemności
 def parse_power_and_capacity(text: str) -> tuple[str, str]:
-    """
-    Parsuje pojemność (cm3) i moc (KM) z tekstu specyfikacji.
-    Zwraca krotkę (moc, pojemność).
-    """
     km = "❓ brak"
     cm3 = "❓ brak"
-    # pojemność: liczby + cm3 lub cm³
     cm3_match = re.search(r"(\d{2,5})\s?cm(?:3|³)", text)
     if cm3_match:
         cm3 = f"{cm3_match.group(1)} cm3"
-    # moc: liczby + KM
     km_match = re.search(r"(\d{2,4})\s?KM", text)
     if km_match:
         km = f"{km_match.group(1)} KM"
@@ -82,7 +76,7 @@ def format_distance(loc_str: str) -> str:
     return f"{emoji} {dist_km} km"
 
 # Pobieranie ofert
- def fetch_offers() -> list[dict]:
+def fetch_offers() -> list[dict]:
     results, page, max_pages = [], 1, None
     while True:
         url = f"{URL}&page={page}" if page > 1 else URL
@@ -126,7 +120,7 @@ def format_distance(loc_str: str) -> str:
     return results
 
 # Wysyłka do Telegrama
- def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
+def send_to_telegram(msg: str, photo_url: str = None, browse_url: str = None):
     base = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "parse_mode": "HTML"}
     if browse_url:
@@ -140,7 +134,7 @@ def format_distance(loc_str: str) -> str:
         requests.post(f"{base}/sendMessage", data=payload)
 
 # Historia
- def load_json_set(path):
+def load_json_set(path):
     if os.path.exists(path):
         try:
             data = json.load(open(path, encoding="utf-8"))
@@ -149,12 +143,13 @@ def format_distance(loc_str: str) -> str:
             return set()
     return set()
 
+
 def save_json(obj, path):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 # Raport dzienny
- def send_daily_report(offers: list[dict]):
+def send_daily_report(offers: list[dict]):
     df = pd.DataFrame(offers)
     df["Cena_num"] = df["Cena"].apply(parse_price)
     avg, mn, mx = df["Cena_num"].mean(), df["Cena_num"].min(), df["Cena_num"].max()
