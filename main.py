@@ -132,11 +132,10 @@ def save_sent_links(sent_links: set):
 
 
 def load_price_history() -> dict:
+    # Załaduj lub utwórz historię cen
     if os.path.exists(PRICE_HISTORY_FILE):
         with open(PRICE_HISTORY_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    # jeśli pliku nie ma, twórz pusty plik
-    save_price_history({})
     return {}
 
 
@@ -149,8 +148,15 @@ if __name__ == "__main__":
     data = fetch_offers()
     sent_links = load_sent_links()
     price_history = load_price_history()
-    new_links = set()
 
+    # Jeśli pierwsze uruchomienie (brak historii) -> zainicjuj z aktualnymi cenami i zapisz, bez wysyłania
+    if not price_history:
+        initial = {item['Link']: parse_price(item['Cena']) for item in data}
+        save_price_history(initial)
+        print(f'Utworzono {PRICE_HISTORY_FILE} z {len(initial)} pozycjami.')
+        exit(0)
+
+    new_links = set()
     for item in data:
         link = item["Link"]
         current_price = parse_price(item["Cena"])
@@ -160,30 +166,24 @@ if __name__ == "__main__":
             if current_price < old_price:
                 percent = (old_price - current_price) / old_price * 100
                 msg = (
-                    f"{item['Tytuł']}\n"
-                    f"Cena spadła z {old_price:,} zł do {current_price:,} zł ({percent:.1f}% taniej)\n"
+                    f"{item['Tytuł']}\nCena spadła z {old_price:,} zł do {current_price:,} zł ({percent:.1f}% taniej)\n"
                 )
-                msg += (
-                    f"{item['Rok produkcji']} | {item['Paliwo']} | {item['Skrzynia']}\n"
-                    f"{item['Przebieg']} | {item['Lokalizacja']}\n\n"
-                    f"👉 {link}"
-                )
-                send_to_telegram(msg, item['Zdjęcie'])
-                price_history[link] = current_price
             elif current_price > old_price:
                 percent = (current_price - old_price) / old_price * 100
                 msg = (
-                    f"{item['Tytuł']}\n"
-                    f"Cena wzrosła z {old_price:,} zł do {current_price:,} zł (+{percent:.1f}%)\n"
+                    f"{item['Tytuł']}\nCena wzrosła z {old_price:,} zł do {current_price:,} zł (+{percent:.1f}%)\n"
                 )
-                msg += (
-                    f"{item['Rok produkcji']} | {item['Paliwo']} | {item['Skrzynia']}\n"
-                    f"{item['Przebieg']} | {item['Lokalizacja']}\n\n"
-                    f"👉 {link}"
-                )
-                send_to_telegram(msg, item['Zdjęcie'])
-                price_history[link] = current_price
+            else:
+                continue  # brak zmiany
+            msg += (
+                f"{item['Rok produkcji']} | {item['Paliwo']} | {item['Skrzynia']}\n"
+                f"{item['Przebieg']} | {item['Lokalizacja']}\n\n"
+                f"👉 {link}"
+            )
+            send_to_telegram(msg, item['Zdjęcie'])
+            price_history[link] = current_price
         else:
+            # nowa oferta
             msg = (
                 f"{item['Tytuł']}\n{item['Cena']}\n"
                 f"{item['Rok produkcji']} | {item['Paliwo']} | {item['Skrzynia']}\n"
