@@ -172,5 +172,6 @@ if __name__ == "__main__":
     for o in offers:
         link = o["Link"]
         if link not in sent_links:
-                        msg = "
+                                    msg = "
+".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k not in ['Zdjęcie','Link']])
 ".join([f"<b>{k}</b>: {v}" for k, v in o.items() if k not in ['Zdjęcie','Link']])
