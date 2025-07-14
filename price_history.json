@@ -230,5 +230,11 @@
       "timestamp": "2025-07-14T06:20:01.872196",
       "price": 99999
     }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-b4-d-momentum-pro-aut-z-polskiego-salonu-faktura-23-ID6GEUdc.html": [
+    {
+      "timestamp": "2025-07-14T08:19:02.366835",
+      "price": 129900
+    }
   ]
 }
