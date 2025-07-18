@@ -302,5 +302,17 @@
       "timestamp": "2025-07-18T04:32:34.683911",
       "price": 106900
     }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-cross-country-4x4-2021r-f-vat-23-bezwypadkowy-gwarancja-przebiegu-i-ser-ID6Hx68D.html": [
+    {
+      "timestamp": "2025-07-18T10:14:05.527838",
+      "price": 119900
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-b4-d-momentum-aut-z-polskiego-salonu-faktura-vat-ID6H9kWI.html": [
+    {
+      "timestamp": "2025-07-18T10:14:06.527150",
+      "price": 124900
+    }
   ]
 }
