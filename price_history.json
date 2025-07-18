@@ -286,5 +286,17 @@
       "timestamp": "2025-07-16T18:17:54.775239",
       "price": 89900
     }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-b4-197km-mild-hybrid-inscription-krajowy-bezwypadkowy-faktura-vat-ID6HoGp5.html": [
+    {
+      "timestamp": "2025-07-18T04:32:33.751427",
+      "price": 130000
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-d4-190-km-r-design-polski-salon-bezwypadkowy-faktura-vat-23-ID6GLEWe.html": [
+    {
+      "timestamp": "2025-07-18T04:32:34.683911",
+      "price": 106900
+    }
   ]
 }
