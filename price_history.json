@@ -346,5 +346,17 @@
       "timestamp": "2025-07-22T20:15:21.529304",
       "price": 110900
     }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-volvo-v60-d4-momentum-pro-polestar-salon-pl-bezwypadkowy-fv-ID6HxA7l.html": [
+    {
+      "timestamp": "2025-07-23T10:14:26.401644",
+      "price": 121770
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-cross-country-cross-country-automat-zadbany-bogata-wersja-awd-4x4-ID6HxBqn.html": [
+    {
+      "timestamp": "2025-07-23T10:14:27.436928",
+      "price": 133900
+    }
   ]
 }
