@@ -83,6 +83,10 @@
     {
       "timestamp": "2025-07-13T08:55:03.394596",
       "price": 134900
+    },
+    {
+      "timestamp": "2025-08-04T14:18:02.739554",
+      "price": 129900
     }
   ],
   "https://www.otomoto.pl/osobowe/oferta/volvo-v60-cross-country-b4-d-awd-ultimate-1-wlasciciel-serwisowany-w-aso-ID6HsRuz.html": [
@@ -455,6 +459,18 @@
     {
       "timestamp": "2025-08-04T12:26:48.849507",
       "price": 124900
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-momentum-pro-190-km-2020r-f-vat-23-bezwypadkowy-gwaranc-ID6Hz1Es.html": [
+    {
+      "timestamp": "2025-08-04T14:18:01.193291",
+      "price": 104900
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-b4-d-momentum-pro-z-polskiego-salonu-faktura-vat-ID6Hz0OL.html": [
+    {
+      "timestamp": "2025-08-04T14:18:01.928876",
+      "price": 119850
     }
   ]
 }
