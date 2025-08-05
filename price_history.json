@@ -139,6 +139,10 @@
     {
       "timestamp": "2025-07-13T08:55:06.001661",
       "price": 129900
+    },
+    {
+      "timestamp": "2025-08-05T10:14:35.749176",
+      "price": 127900
     }
   ],
   "https://www.otomoto.pl/osobowe/oferta/volvo-v60-v60-d4-r-design-aut-diesel-automatyczna-naped-przedni-5-drzwi-ID6Hw3o8.html": [
@@ -283,6 +287,10 @@
     {
       "timestamp": "2025-07-14T18:18:45.051344",
       "price": 106900
+    },
+    {
+      "timestamp": "2025-08-05T10:14:35.442978",
+      "price": 103900
     }
   ],
   "https://www.otomoto.pl/osobowe/oferta/volvo-v60-roczna-gwarancja-kamera-cofania-ID6HvAd5.html": [
@@ -471,6 +479,12 @@
     {
       "timestamp": "2025-08-04T14:18:01.928876",
       "price": 119850
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-nowy-model-bezwypadkowy-serwisowany-ID6Hz75C.html": [
+    {
+      "timestamp": "2025-08-05T10:14:34.646847",
+      "price": 139900
     }
   ]
 }
