@@ -498,5 +498,17 @@
       "timestamp": "2025-08-06T08:18:18.184163",
       "price": 135000
     }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-cross-country-d4-awd-gwarancja-salon-polska-ID6Hyjlu.html": [
+    {
+      "timestamp": "2025-08-06T10:15:00.462683",
+      "price": 139898
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-197ps-skora-inscription-full-led-panorama-alus18-ID6HxCch.html": [
+    {
+      "timestamp": "2025-08-06T10:15:01.302885",
+      "price": 116500
+    }
   ]
 }
