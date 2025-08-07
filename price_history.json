@@ -514,5 +514,17 @@
       "timestamp": "2025-08-06T10:15:01.302885",
       "price": 116500
     }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-polski-salon-bezwypadkowy-serwis-aso-fv23-gwarancja-ID6Hzso7.html": [
+    {
+      "timestamp": "2025-08-07T12:26:33.817769",
+      "price": 109900
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-d4-awd-r-desing-automat-szwajcar-ID6HzuCN.html": [
+    {
+      "timestamp": "2025-08-07T12:26:34.689767",
+      "price": 109900
+    }
   ]
 }
