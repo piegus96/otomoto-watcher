@@ -554,5 +554,23 @@
       "timestamp": "2025-08-11T16:15:45.485116",
       "price": 97999
     }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-ID6HzXrf.html": [
+    {
+      "timestamp": "2025-08-12T12:23:50.589614",
+      "price": 139900
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v60-b4-d-momentum-pro-z-polskiego-salonu-faktura-vat-ID6HzXaQ.html": [
+    {
+      "timestamp": "2025-08-12T12:23:51.246006",
+      "price": 117800
+    }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-momentum-at8-2022r-gwarancja-i-wl-aso-fv23-kamery-cofan-ID6HzXK9.html": [
+    {
+      "timestamp": "2025-08-12T12:23:51.798322",
+      "price": 132900
+    }
   ]
 }
