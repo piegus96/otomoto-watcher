@@ -572,5 +572,11 @@
       "timestamp": "2025-08-12T12:23:51.798322",
       "price": 132900
     }
+  ],
+  "https://www.otomoto.pl/osobowe/oferta/volvo-v90-ID6HA07W.html": [
+    {
+      "timestamp": "2025-08-12T18:18:38.690203",
+      "price": 107900
+    }
   ]
 }
